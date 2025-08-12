@@ -2,7 +2,7 @@
 
 export type QuestionMarks = 2 | 5 | 10;
 
-export type QuestionStatus = "FOUND" | "NOT_FOUND" | "NEEDS_REVIEW";
+export type QuestionStatus = "FOUND" | "NOT_FOUND" | "NEEDS_REVIEW" | "APPROVED";
 
 export type AnswerFormat = "concise" | "structured" | "detailed";
 

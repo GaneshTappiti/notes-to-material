@@ -1,8 +1,10 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { UploadCloud } from "lucide-react";
+import { uploadFile, getUploadStatus, deleteUpload } from "@/lib/api";
+import { toast } from "@/components/ui/use-toast";
 
 export type UploadedFile = {
   id: string;
@@ -28,7 +30,37 @@ const FileUploader = ({ label, onFilesChange }: FileUploaderProps) => {
       onFilesChange?.(merged);
       return merged;
     });
+    // auto start upload
+    next.forEach(startUpload);
   };
+
+  const startUpload = async (uf: UploadedFile) => {
+    try {
+      setFiles((prev) => prev.map(p => p.id === uf.id ? { ...p, status: 'ocr' } : p));
+      const res = await uploadFile(uf.file);
+      setFiles((prev) => prev.map(p => p.id === uf.id ? { ...p, id: res.file_id, status: 'ocr' } : p));
+    } catch (e: any) {
+      toast({ title: 'Upload failed', description: e.message, variant: 'destructive' });
+      setFiles((prev) => prev.map(p => p.id === uf.id ? { ...p, status: 'error' } : p));
+    }
+  };
+
+  // Poll statuses
+  useEffect(() => {
+    const interval = setInterval(() => {
+      files.filter(f => f.status === 'ocr').forEach(async f => {
+        try {
+          const s = await getUploadStatus(f.id);
+            if (s.status === 'done') {
+              setFiles(prev => prev.map(p => p.id === f.id ? { ...p, status: 'indexed', pages: s.pages } : p));
+            }
+        } catch {}
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [files]);
+
+  const clearAll = () => setFiles([]);
 
   return (
     <Card className="h-full">
@@ -62,12 +94,17 @@ const FileUploader = ({ label, onFilesChange }: FileUploaderProps) => {
         {files.length > 0 && (
           <ul className="mt-4 space-y-2">
             {files.map((f) => (
-              <li key={f.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-                <div className="min-w-0">
+              <li key={f.id} className="flex items-center justify-between rounded-md border px-3 py-2 gap-2">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm truncate" title={f.file.name}>{f.file.name}</p>
                   <p className="text-xs text-muted-foreground">{Math.round(f.file.size / 1024)} KB</p>
                 </div>
-                <Badge variant="secondary">{f.status ?? "pending"}</Badge>
+                <Badge variant="secondary" className="shrink-0 mr-1">{f.status ?? "pending"}</Badge>
+                {f.status==='indexed' && (
+                  <Button size="sm" variant="outline" onClick={async ()=> {
+                    try { await deleteUpload(f.id); setFiles(prev=> prev.filter(p=>p.id!==f.id)); } catch {}
+                  }}>Delete</Button>
+                )}
               </li>
             ))}
           </ul>
@@ -75,8 +112,7 @@ const FileUploader = ({ label, onFilesChange }: FileUploaderProps) => {
 
         {files.length > 0 && (
           <div className="mt-4 flex gap-2">
-            <Button variant="default">Start OCR</Button>
-            <Button variant="secondary">Clear</Button>
+            <Button variant="secondary" onClick={clearAll}>Clear</Button>
           </div>
         )}
       </CardContent>

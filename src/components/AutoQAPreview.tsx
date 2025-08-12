@@ -12,10 +12,11 @@ interface AutoQAPreviewProps {
   onOpenReview?: () => void;
 }
 
-const statusConfig: Record<QuestionStatus, { icon: any; color: string; label: string }> = {
-  FOUND: { icon: CheckCircle2, color: "text-green-600", label: "Found" },
-  NOT_FOUND: { icon: AlertCircle, color: "text-red-600", label: "Not Found" },
-  NEEDS_REVIEW: { icon: Clock, color: "text-yellow-600", label: "Needs Review" },
+const statusConfig: Record<QuestionStatus, { icon: any; color: string; label: string; badgeVariant?: string }> = {
+  FOUND: { icon: CheckCircle2, color: "text-green-600", label: "Found", badgeVariant: "default" },
+  NOT_FOUND: { icon: AlertCircle, color: "text-red-600", label: "Not Found", badgeVariant: "destructive" },
+  NEEDS_REVIEW: { icon: Clock, color: "text-yellow-600", label: "Needs Review", badgeVariant: "secondary" },
+  APPROVED: { icon: CheckCircle2, color: "text-emerald-600", label: "Approved", badgeVariant: "approved" },
 };
 
 const AutoQAPreview = ({ items, isGenerating = false, progress = 0, onOpenReview }: AutoQAPreviewProps) => {
@@ -24,7 +25,7 @@ const AutoQAPreview = ({ items, isGenerating = false, progress = 0, onOpenReview
       acc[item.status]++;
       return acc;
     },
-    { FOUND: 0, NOT_FOUND: 0, NEEDS_REVIEW: 0 } as Record<QuestionStatus, number>
+  { FOUND: 0, NOT_FOUND: 0, NEEDS_REVIEW: 0, APPROVED: 0 } as Record<QuestionStatus, number>
   );
 
   return (
@@ -91,9 +92,7 @@ const AutoQAPreview = ({ items, isGenerating = false, progress = 0, onOpenReview
                     )}
                   </div>
                 </div>
-                <Badge variant={item.status === "FOUND" ? "default" : item.status === "NOT_FOUND" ? "destructive" : "secondary"}>
-                  {config.label}
-                </Badge>
+                <Badge variant={(config.badgeVariant as any) || "default"}>{config.label}</Badge>
               </div>
             );
           })}

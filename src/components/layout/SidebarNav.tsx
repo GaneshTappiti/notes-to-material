@@ -7,6 +7,7 @@ const nav = [
   { to: "/uploads", label: "Uploads", icon: Upload },
   { to: "/queue", label: "Processing Queue", icon: FileClock },
   { to: "/review", label: "Review Center", icon: ListChecks },
+  { to: "/jobs", label: "Jobs", icon: BookOpen },
   { to: "/templates", label: "Templates & Export", icon: Layers },
   { to: "/exports", label: "Exports", icon: FileText },
   { to: "/settings", label: "Settings", icon: Settings },

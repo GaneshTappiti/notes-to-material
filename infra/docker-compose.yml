@@ -1,0 +1,40 @@
+version: '3.9'
+
+services:
+  backend:
+    build: ../backend
+    environment:
+      - STORAGE_PATH=/data
+    volumes:
+      - ../backend/app:/app/app:ro
+      - backend-data:/data
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+
+  frontend:
+    build: ../frontend
+    working_dir: /app
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    ports:
+      - "5173:5173"
+    volumes:
+      - ..:/app
+    depends_on:
+      - backend
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=app
+      - POSTGRES_PASSWORD=app
+      - POSTGRES_DB=app
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata: {}
+  backend-data: {}

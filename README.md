@@ -83,3 +83,32 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+---
+
+## Minimal Skeleton (Backend + Frontend + Compose)
+
+This repository now includes a minimal working skeleton as requested:
+
+- FastAPI backend (`backend/app/main.py`) mounting only the uploads router (`backend/app/api/uploads.py`).
+- POST `/api/uploads` accepts a multipart file and writes it to `STORAGE_PATH` (env) or `./storage`, returning `{ filename, size }`.
+- Stub PDF extraction function at `backend/app/services/pdf_extract.py` with a TODO to implement real logic later.
+- Simple React upload page (`frontend/src/pages/UploadPage.jsx`) served via Vite that can send a file to the backend.
+- `infra/docker-compose.yml` orchestrates `backend`, `frontend`, and `postgres` services. Run from `infra/`:
+
+```sh
+docker compose up --build
+```
+
+Backend: http://localhost:8000 (health at `/health`)
+
+Frontend: http://localhost:5173
+
+Environment var `VITE_BACKEND_URL` can be used on the frontend to point to a different backend origin.
+
+### TODOs / Next Steps
+- Implement real PDF parsing & OCR in `extract_pages`.
+- Add database models / migrations using Postgres.
+- Add tests for the upload endpoint & integration flow.
+- Improve frontend styling, multiple uploads & progress indicators.
+- Add authentication & tighten CORS.

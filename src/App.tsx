@@ -11,9 +11,11 @@ import NewJobWizard from "./pages/NewJobWizard";
 import Queue from "./pages/Queue";
 import ReviewCenter from "./pages/ReviewCenter";
 import TemplatesExport from "./pages/TemplatesExport";
+import Jobs from "./pages/Jobs";
 import Settings from "./pages/Settings";
 import Logs from "./pages/Logs";
 import NotFound from "./pages/NotFound";
+import RagPlayground from "./pages/RagPlayground";
 
 const queryClient = new QueryClient();
 
@@ -31,10 +33,12 @@ const App = () => (
               <Route path="/new-job" element={<NewJobWizard />} />
               <Route path="/queue" element={<Queue />} />
               <Route path="/review" element={<ReviewCenter />} />
+              <Route path="/jobs" element={<Jobs />} />
               <Route path="/templates" element={<TemplatesExport />} />
               <Route path="/exports" element={<TemplatesExport />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/logs" element={<Logs />} />
+              <Route path="/rag" element={<RagPlayground />} />
               {/* CATCH-ALL */}
               <Route path="*" element={<NotFound />} />
             </Routes>
