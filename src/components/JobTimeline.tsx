@@ -1,10 +1,12 @@
-import { CheckCircle2, Database, FileUp, FileText, Scan, Shield } from "lucide-react";
+import { CheckCircle2, Database, FileUp, FileText, Scan, Shield, Zap, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type JobStage = {
   key: string;
   label: string;
   status: "pending" | "active" | "done" | "error";
+  progress?: number; // 0-100 for stages with progress
+  details?: string; // Additional info like "Generated 5/10 questions"
 };
 
 const icons: Record<string, any> = {
@@ -12,6 +14,8 @@ const icons: Record<string, any> = {
   ocr: Scan,
   indexing: Database,
   model: Shield,
+  question_generation: Zap,
+  answer_generation: Target,
   validation: CheckCircle2,
   ready: FileText,
 };

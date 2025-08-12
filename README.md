@@ -60,6 +60,18 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Auto Q&A from Notes (New Feature)
+
+An experimental wizard flow lets you upload chapter-wise notes and (in production) generate exam-style questions (2M / 5M / 10M) plus sourced answers strictly from the uploaded PDFs. The current UI includes:
+
+- New job type selection: "Auto Q&A from Notes".
+- Generation settings (marks, counts, mode, sourcing toggles).
+- Preview step with mock generation (front-end only for now) showing FOUND / NOT_FOUND / NEEDS_REVIEW statuses and confidence.
+
+Backend responsibilities (to be implemented separately): OCR, embeddings, retrieval, guarded model prompting, validation, and export using the JSON schema in `src/types/autoqa.ts`.
+
+Database / persistence wiring is intentionally deferred.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/5fa4be83-e34b-4309-907d-2b424ecb5e69) and click on Share -> Publish.
