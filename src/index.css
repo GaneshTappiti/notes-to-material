@@ -103,3 +103,35 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Extend design tokens for Scollab brand and premium glow */
+@layer base {
+  :root {
+    --brand: 9 89% 60%; /* vibrant scarlet */
+    --brand-2: 22 92% 55%; /* warm orange */
+    --gradient-hero: radial-gradient(
+      1200px circle at var(--glow-x, 50%) var(--glow-y, 20%),
+      hsl(var(--brand) / 0.25),
+      hsl(var(--background)) 60%
+    );
+    --shadow-glow: 0 0 40px hsl(var(--brand) / 0.45);
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .dark {
+    --brand: 9 89% 60%;
+    --brand-2: 22 92% 55%;
+    --gradient-hero: radial-gradient(
+      1200px circle at var(--glow-x, 50%) var(--glow-y, 20%),
+      hsl(var(--brand) / 0.35),
+      hsl(var(--background)) 55%
+    );
+    --shadow-glow: 0 0 50px hsl(var(--brand) / 0.5);
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@layer utilities {
+  .bg-hero-glow { background: var(--gradient-hero); }
+  .elevated { box-shadow: var(--shadow-glow); }
+  .focus-ring { @apply ring-2 ring-ring ring-offset-2 ring-offset-background focus:outline-none; }
+}
