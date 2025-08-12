@@ -135,3 +135,7 @@ All colors MUST be HSL.
   .elevated { box-shadow: var(--shadow-glow); }
   .focus-ring { @apply ring-2 ring-ring ring-offset-2 ring-offset-background focus:outline-none; }
 }
+
+@layer components {
+  .dropdown-panel { @apply z-50 bg-popover text-foreground border shadow-lg; }
+}

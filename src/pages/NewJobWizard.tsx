@@ -41,7 +41,7 @@ const NewJobWizard = () => {
             </div>
             <div>
               <Label>Year</Label>
-              <Select><SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger><SelectContent>{[1,2,3,4].map(y=> <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select>
+              <Select><SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger><SelectContent className="dropdown-panel">{[1,2,3,4].map(y=> <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select>
             </div>
             <div>
               <Label>Course</Label>
@@ -65,11 +65,11 @@ const NewJobWizard = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label>OCR language</Label>
-              <Select><SelectTrigger><SelectValue placeholder="Auto-detect" /></SelectTrigger><SelectContent><SelectItem value="auto">Auto-detect</SelectItem><SelectItem value="en">English</SelectItem></SelectContent></Select>
+              <Select><SelectTrigger><SelectValue placeholder="Auto-detect" /></SelectTrigger><SelectContent className="dropdown-panel"><SelectItem value="auto">Auto-detect</SelectItem><SelectItem value="en">English</SelectItem></SelectContent></Select>
             </div>
             <div>
               <Label>Retrieval strategy</Label>
-              <Select><SelectTrigger><SelectValue placeholder="Page-level" /></SelectTrigger><SelectContent><SelectItem value="page">Page-level</SelectItem><SelectItem value="chunk">Chunk-level</SelectItem></SelectContent></Select>
+              <Select><SelectTrigger><SelectValue placeholder="Page-level" /></SelectTrigger><SelectContent className="dropdown-panel"><SelectItem value="page">Page-level</SelectItem><SelectItem value="chunk">Chunk-level</SelectItem></SelectContent></Select>
             </div>
           </div>
         </Step>
@@ -80,7 +80,7 @@ const NewJobWizard = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label>Template</Label>
-              <Select><SelectTrigger><SelectValue placeholder="Exam-compact" /></SelectTrigger><SelectContent><SelectItem value="compact">Exam-compact</SelectItem><SelectItem value="detailed">Study-detailed</SelectItem></SelectContent></Select>
+              <Select><SelectTrigger><SelectValue placeholder="Exam-compact" /></SelectTrigger><SelectContent className="dropdown-panel"><SelectItem value="compact">Exam-compact</SelectItem><SelectItem value="detailed">Study-detailed</SelectItem></SelectContent></Select>
             </div>
             <div>
               <Label>Footer options</Label>

@@ -26,7 +26,7 @@ const ReviewCenter = () => {
       <aside className="lg:col-span-4 border rounded-md">
         <div className="p-3 border-b flex items-center gap-2">
           <Input placeholder="Search questions" aria-label="Search questions" />
-          <Select><SelectTrigger className="w-36"><SelectValue placeholder="All marks" /></SelectTrigger><SelectContent>{["All","2","5","10"].map(m=> <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select>
+          <Select><SelectTrigger className="w-36"><SelectValue placeholder="All marks" /></SelectTrigger><SelectContent className="dropdown-panel">{["All","2","5","10"].map(m=> <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select>
         </div>
         <ul className="max-h-[70vh] overflow-y-auto divide-y">
           {sampleQuestions.map((q) => (
@@ -50,11 +50,11 @@ const ReviewCenter = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <Label>Marks</Label>
-                <Select defaultValue={String(active.marks)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{[2,5,10].map(m => <SelectItem key={m} value={String(m)}>{m}</SelectItem>)}</SelectContent></Select>
+                <Select defaultValue={String(active.marks)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent className="dropdown-panel">{[2,5,10].map(m => <SelectItem key={m} value={String(m)}>{m}</SelectItem>)}</SelectContent></Select>
               </div>
               <div>
                 <Label>Status</Label>
-                <Select defaultValue="FOUND"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["FOUND","NOT_FOUND","Needs Edit"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select>
+                <Select defaultValue="FOUND"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent className="dropdown-panel">{["FOUND","NOT_FOUND","Needs Edit"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select>
               </div>
             </div>
 
