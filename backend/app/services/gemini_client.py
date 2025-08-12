@@ -1,5 +1,5 @@
 # Placeholder Gemini client (use google generative AI SDK or Vertex AI SDK in production)
-import os, hashlib, json
+import os, hashlib, json, threading, time
 from typing import List
 
 try:
@@ -25,6 +25,10 @@ class GeminiClient:
     def __init__(self):
         self.embed_model = EMBED_MODEL_CANDIDATES[0]
         self.gen_model = GEN_MODEL_CANDIDATES[0]
+        self._lock = threading.Lock()
+        self.calls_today = 0
+        self._day = time.strftime('%Y-%m-%d')
+        self.daily_limit = int(os.getenv('DAILY_CALL_LIMIT', '0'))  # 0 = unlimited
 
     def _fallback_embed(self, texts: List[str]) -> list[list[float]]:
         out = []
@@ -49,6 +53,14 @@ class GeminiClient:
         return self._fallback_embed(texts)
 
     def generate(self, prompt: str) -> str:
+        with self._lock:
+            today = time.strftime('%Y-%m-%d')
+            if today != self._day:
+                self._day = today
+                self.calls_today = 0
+            if self.daily_limit and self.calls_today >= self.daily_limit:
+                return json.dumps({"items": [], "error": "daily_limit_reached"})
+            self.calls_today += 1
         if genai and API_KEY:
             try:
                 model = genai.GenerativeModel(self.gen_model)

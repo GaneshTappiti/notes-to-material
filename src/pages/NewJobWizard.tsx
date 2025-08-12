@@ -8,9 +8,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import FileUploader from "@/components/FileUploader";
 import { useState } from "react";
-import { AutoQAJobConfig, GenerationSettings, QuestionMarks, QAPreviewItem, GeneratedQuestion } from "@/types/autoqa";
+import { AutoQAJobConfig, GenerationSettings, QuestionMarks, QAPreviewItem } from "@/types/autoqa";
 import AutoQAPreview from "@/components/AutoQAPreview";
-import { mockGenerateQuestions } from "@/lib/autoqa_generation";
+import { useAutoQAGeneration } from "@/hooks/useAutoQAGeneration";
 import { BookOpen, Zap } from "lucide-react";
 
 const Step = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -32,25 +32,18 @@ const NewJobWizard = () => {
     retrieval_threshold: 0.8,
   });
   const [previewItems, setPreviewItems] = useState<QAPreviewItem[]>([]);
-  const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const { runGeneration, isGenerating, progress, error } = useAutoQAGeneration();
+  const [generatedQuestions, setGeneratedQuestions] = useState<any[]>([]); // TODO remove if unused
 
-  const triggerGeneration = () => {
-    setIsGenerating(true);
-    setProgress(5);
-    // Simulate async generation
-    setTimeout(() => {
-      setProgress(55);
-      const { questions, preview } = mockGenerateQuestions({
+  const triggerGeneration = async () => {
+    try {
+      const preview = await runGeneration({
         marks: generationSettings.marks_to_generate,
         questionsPerMark: generationSettings.questions_per_mark,
+        promptContext: ''
       });
-      setGeneratedQuestions(questions);
       setPreviewItems(preview);
-      setProgress(100);
-      setIsGenerating(false);
-    }, 600);
+    } catch {}
   };
 
   return (
@@ -271,6 +264,7 @@ const NewJobWizard = () => {
             <div className="flex gap-2">
               <Button disabled={isGenerating} onClick={triggerGeneration} variant="secondary">{previewItems.length? 'Regenerate' : 'Generate'} Questions</Button>
               <Button variant="outline" disabled={isGenerating || !previewItems.length} onClick={() => alert('Open Review Center (to implement)')}>Open Review Center</Button>
+              {error && <span className="text-xs text-destructive self-center">{error}</span>}
             </div>
             <AutoQAPreview items={previewItems} isGenerating={isGenerating} progress={progress} onOpenReview={() => alert('Review Center placeholder')} />
           </div>

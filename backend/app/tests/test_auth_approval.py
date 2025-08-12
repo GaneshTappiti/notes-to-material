@@ -4,6 +4,7 @@ from pathlib import Path
 import io
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+from uuid import uuid4
 
 client = TestClient(app)
 
@@ -29,12 +30,10 @@ def _login(email: str, password: str):
     return r.json()['token']
 
 def test_role_based_approval_flow(tmp_path):
-    # First user becomes admin
-    admin_token = _register('admin@example.com','pass123')
-    # Second user student
-    student_token = _register('stud@example.com','pass123')
-    # Third user faculty (allowed to set role because an admin exists)
-    faculty_token = _register('fac@example.com','pass123','faculty')
+    suffix = uuid4().hex[:6]
+    admin_token = _register(f'admin_{suffix}@example.com','pass123','admin')
+    student_token = _register(f'stud_{suffix}@example.com','pass123')
+    faculty_token = _register(f'fac_{suffix}@example.com','pass123','faculty')
 
     # Upload PDF (no auth required yet) -> create job via generate? simplest just craft a fake question record
     # We'll simulate by creating a job result file directly

@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "id": "q1",
+      "question": "What?",
+      "answers": {
+        "1": "Ans"
+      },
+      "approval": {
+        "approved_at": "2025-08-12T17:00:03.281662",
+        "approver_id": 7,
+        "approver_role": "admin"
+      }
+    }
+  ]
+}

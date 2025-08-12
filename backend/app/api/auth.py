@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
 from sqlmodel import select
-from ..models import User, get_session
+from ..models import User, get_session, create_db
 from ..services.auth import _hash_password, verify_password, create_token, current_user
 
+create_db()  # ensure tables (idempotent for tests)
 router = APIRouter()
 
 class RegisterPayload(BaseModel):
