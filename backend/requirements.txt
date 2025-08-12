@@ -22,3 +22,6 @@ reportlab
 pytest
 sqlmodel
 psycopg[binary]
+PyJWT
+prometheus-client
+email-validator

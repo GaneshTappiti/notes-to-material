@@ -8,10 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from 'react-router-dom';
-import { getJobResults, regenerateItem, updateJobItem } from '@/lib/api';
+import { getJobResults, regenerateItem, updateJobItem, patchQuestion } from '@/lib/api';
 import { toast } from '@/components/ui/use-toast';
 import { GeneratedQuestion, QuestionStatus } from "@/types/autoqa";
-import { CheckCircle2, AlertCircle, Clock, FileText, Image, RotateCcw } from "lucide-react";
+import { CheckCircle2, AlertCircle, Clock, FileText, Image, RotateCcw, Eye } from "lucide-react";
+import ReviewList from '@/components/ReviewList.jsx';
+import EditorPanel from '@/components/EditorPanel.jsx';
+import SourcePanel from '@/components/SourcePanel.jsx';
+import { Document, Page as PdfPage, pdf } from '@react-pdf/renderer';
 
 // Sample data for Auto Q&A questions
 const sampleAutoQAQuestions: GeneratedQuestion[] = Array.from({ length: 24 }).map((_, i) => ({
@@ -125,25 +129,13 @@ const ReviewCenter = () => {
         <aside className="lg:col-span-4 border rounded-md">
           <div className="p-3 border-b flex items-center gap-2">
             <Input placeholder="Search questions" aria-label="Search questions" />
-            <Select><SelectTrigger className="w-36"><SelectValue placeholder="All marks" /></SelectTrigger><SelectContent className="dropdown-panel">{["All","2","5","10"].map(m=> <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select>
+            <Select><SelectTrigger className="w-36"><SelectValue placeholder="All marks" /></SelectTrigger><SelectContent className="dropdown-panel">{"All,2,5,10".split(',').map(m=> <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select>
           </div>
-          <ul className="max-h-[70vh] overflow-y-auto divide-y">
-            {viewMode === "auto_qa" ? (
-              grouped.map(group => (
-                <li key={group.question_text} className={`p-3 cursor-pointer ${group.variants.some(v=>v.question_id===activeId)? 'bg-secondary':''}`} onClick={() => setActive(group.variants[0].question_id)}>
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium truncate" title={group.question_text}>{group.question_text}</p>
-                    <div className="flex gap-1">
-                      {group.variants.map(v => <Badge key={v.question_id} variant="outline" className="text-[10px]">{v.marks}M</Badge>)}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 text-xs text-muted-foreground">
-                    <span>{group.variants.flatMap(v=>v.page_references).length} refs</span>
-                  </div>
-                </li>
-              ))
-            ) : (
-              sampleQuestions.map((q) => (
+          {viewMode === 'auto_qa' ? (
+            <ReviewList groups={grouped} activeId={activeId} onSelect={setActive} />
+          ) : (
+            <ul className="max-h-[70vh] overflow-y-auto divide-y">
+              {sampleQuestions.map((q) => (
                 <li key={q.id} className={`p-3 cursor-pointer ${q.id===parseInt(activeId)? 'bg-secondary':''}`} onClick={() => setActive(String(q.id))}>
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium truncate">{q.text}</p>
@@ -151,9 +143,9 @@ const ReviewCenter = () => {
                   </div>
                   <p className="text-xs text-muted-foreground">{q.status} • {q.refs} refs</p>
                 </li>
-              ))
-            )}
-          </ul>
+              ))}
+            </ul>
+          )}
         </aside>
 
         <section className="lg:col-span-8 grid gap-4">
@@ -235,22 +227,27 @@ const ReviewCenter = () => {
                           }}
                         />
                       </div>
-                      <div>
-                        <Label htmlFor="answer-editor">Answer</Label>
-                        <textarea
-                          id="answer-editor"
-                          className="mt-1 w-full min-h-[240px] rounded-md border bg-background p-3 text-sm"
-                          defaultValue={activeAutoQA.answer}
-                          placeholder="Generated answer will appear here..."
-                          onBlur={e=>{
-                            const val = e.target.value;
-                            setDynamicItems(prev => prev?.map(it => it.question_id===activeAutoQA.question_id ? { ...it, answer: val } : it) || null);
-                          }}
-                        />
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Format: {activeAutoQA.answer_format} • Tip: Press Ctrl/Cmd+S to save quickly
-                        </p>
-                      </div>
+                      <EditorPanel
+                        value={activeAutoQA.answer}
+                        onChange={val=> setDynamicItems(prev => prev?.map(it => it.question_id===activeAutoQA.question_id ? { ...it, answer: val } : it) || null)}
+                        onSave={async ()=>{
+                          if (!dynamicItems) return;
+                          const idx = dynamicItems.findIndex(it => it.question_id===activeAutoQA.question_id);
+                          if (idx>=0){
+                            await updateJobItem((searchParams.get('job_id')||''), idx, { question: activeAutoQA.question_text, answers: { [activeAutoQA.marks]: activeAutoQA.answer }, page_references: activeAutoQA.page_references });
+                            toast({ title: 'Saved', description: 'Answer updated.' });
+                          }
+                        }}
+                        onCite={()=>{
+                          // add dummy citation referencing first page reference incrementally
+                          const ref = `${activeAutoQA.question_id.split('-')[0]}:1`;
+                          setDynamicItems(prev => prev?.map(it => it.question_id===activeAutoQA.question_id ? { ...it, page_references: Array.from(new Set([...(it.page_references||[]), ref])) } : it) || null);
+                        }}
+                        onInsertDiagram={(path)=>{
+                          setDynamicItems(prev => prev?.map(it => it.question_id===activeAutoQA.question_id ? { ...it, diagram_images: Array.from(new Set([...(it.diagram_images||[]), path])) } : it) || null);
+                        }}
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">Format: {activeAutoQA.answer_format}</p>
                     </TabsContent>
 
                     <TabsContent value="sources" className="space-y-3">
@@ -343,11 +340,10 @@ const ReviewCenter = () => {
                       }
                     }}>Approve</Button>
                     <Button variant="secondary" onClick={async ()=>{
-                      // naive persist: assume ordering maps to index
                       if (!dynamicItems) return;
                       const idx = dynamicItems.findIndex(it => it.question_id === activeAutoQA.question_id);
                       if (idx >=0) {
-                        try { await updateJobItem((searchParams.get('job_id')||''), idx, { question: activeAutoQA.question_text, answers: { [activeAutoQA.marks]: activeAutoQA.answer } }); } catch(e) { console.error(e);} }
+                        try { await updateJobItem((searchParams.get('job_id')||''), idx, { question: activeAutoQA.question_text, answers: { [activeAutoQA.marks]: activeAutoQA.answer }, page_references: activeAutoQA.page_references }); toast({ title:'Saved'});} catch(e:any) { console.error(e);} }
                     }}>Save</Button>
                     <Button variant="outline" onClick={async ()=>{
                       try {
@@ -357,6 +353,14 @@ const ReviewCenter = () => {
                         toast({ title: 'Regenerated', description: 'New answer variant generated.' });
                       } catch(e:any){ console.error(e); toast({ title: 'Regenerate failed', description: e.message || 'Error generating answer', variant: 'destructive' }); } 
                     }}>Regenerate</Button>
+                    <Button variant="outline" onClick={()=>{
+                      // Basic PDF preview of single answer using React-PDF in new window
+                      const PdfDoc = () => (<Document><PdfPage size="A4"><div style={{ padding:20, fontSize:12 }}><h1>{activeAutoQA.question_text}</h1><p>{activeAutoQA.answer}</p></div></PdfPage></Document>);
+                      pdf(<PdfDoc />).toBlob().then(blob => {
+                        const url = URL.createObjectURL(blob);
+                        window.open(url, '_blank');
+                      });
+                    }} title="Preview PDF"><Eye className="h-4 w-4" /></Button>
                     <Button variant="outline">Flag for faculty</Button>
                   </div>
                 </CardContent>

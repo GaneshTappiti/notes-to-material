@@ -63,6 +63,17 @@ class QuestionResult(SQLModel, table=True):
     status: str = Field(default="FOUND")  # FOUND|NOT_FOUND
     retrieval_scores: List[float] = Field(default_factory=list, sa_column=Column(JSON))
     raw_model_output: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    approved_at: Optional[str] = Field(default=None, description="UTC ISO timestamp when faculty approved")
+    approver_id: Optional[int] = Field(default=None, foreign_key="user.id")
+
+
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(index=True, unique=True)
+    password_hash: str
+    role: str = Field(default="student", description="student|faculty|admin")
+    created_at: str = Field(default_factory=lambda: __import__("datetime").datetime.utcnow().isoformat())
+
 
 
 def create_db():  # idempotent

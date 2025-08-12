@@ -106,9 +106,43 @@ Frontend: http://localhost:5173
 
 Environment var `VITE_BACKEND_URL` can be used on the frontend to point to a different backend origin.
 
+### Local Development
+Backend:
+```
+cd backend/app
+uvicorn app.main:app --reload
+```
+Frontend:
+```
+npm install
+npm run dev
+```
+Run backend tests:
+```
+cd backend/app
+pytest -q
+```
+Healthcheck script:
+```
+bash scripts/healthcheck.sh
+```
+
+### Authentication & Roles
+JWT auth added:
+- POST /api/auth/register
+- POST /api/auth/login
+- GET /api/auth/me
+Roles: student | faculty | admin. First registered user becomes admin. Faculty/admin can approve questions at `PATCH /api/questions/{id}/approve`.
+
+### CI
+GitHub Actions workflows: backend tests & frontend lint/test under `.github/workflows`.
+
+### Metrics & Monitoring
+Prometheus endpoint at `/metrics`. See `monitoring/README.md`.
+
 ### TODOs / Next Steps
-- Implement real PDF parsing & OCR in `extract_pages`.
-- Add database models / migrations using Postgres.
-- Add tests for the upload endpoint & integration flow.
-- Improve frontend styling, multiple uploads & progress indicators.
-- Add authentication & tighten CORS.
+- Real PDF parsing & OCR improvements.
+- Postgres migrations.
+- Additional unit + integration tests (embedding, generator mocks etc.).
+- Add rate limiting / budgeting around Gemini calls.
+- Tighten CORS and add refresh tokens.

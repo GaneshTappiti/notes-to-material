@@ -67,6 +67,13 @@ export async function updateJobItem(job_id: string, index: number, updates: {que
   return res.json();
 }
 
+// Direct patch of question by id (for future per-question editing API)
+export async function patchQuestion(qid: string, updates: {question?: string; answers?: Record<string,string>; page_references?: string[]; status?: string}) {
+  const res = await fetch(`${API_BASE}/questions/${qid}`, { method: 'PATCH', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(updates) });
+  if (!res.ok) throw new Error('Patch question failed');
+  return res.json();
+}
+
 export async function createExport(payload: { job_id: string; template: string; title?: string; footer?: string }) {
   const res = await fetch(`${API_BASE}/exports`, { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload) });
   if (!res.ok) throw new Error('Export failed');

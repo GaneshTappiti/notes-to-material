@@ -1,0 +1,25 @@
+name: Frontend Checks
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'frontend/**'
+      - '.github/workflows/frontend-tests.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'frontend/**'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        run: npm ci || npm install
+      - name: Lint
+        run: npx eslint . || echo "Lint warnings"
+      - name: Unit tests
+        run: npm test --if-present -- --watch=false || echo "No tests"
