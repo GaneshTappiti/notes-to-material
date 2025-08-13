@@ -1,6 +1,17 @@
-# Placeholder Gemini client (use google generative AI SDK or Vertex AI SDK in production)
+"""Gemini client wrapper.
+
+Loads API key from environment (use backend/.env for local dev). Provides
+embedding + text generation with graceful fallback when the SDK or key are
+missing so tests and local offline flows still work deterministically.
+"""
 import os, hashlib, json, threading, time
 from typing import List
+
+try:  # load .env if present (local dev)
+    from dotenv import load_dotenv  # type: ignore
+    load_dotenv()
+except Exception:  # pragma: no cover
+    pass
 
 try:
     import google.generativeai as genai  # type: ignore
@@ -9,7 +20,12 @@ except ImportError:  # pragma: no cover
 
 API_KEY = os.getenv("GOOGLE_API_KEY", "")
 if genai and API_KEY:
-    genai.configure(api_key=API_KEY)
+    try:  # tolerate SDK version drift by getattr indirection
+        _configure = getattr(genai, 'configure', None)
+        if callable(_configure):
+            _configure(api_key=API_KEY)
+    except Exception:  # pragma: no cover
+        pass
 
 EMBED_MODEL_CANDIDATES = [
     "text-embedding-004",
@@ -40,10 +56,18 @@ class GeminiClient:
     def embed(self, texts: List[str]) -> list[list[float]]:
         if genai and API_KEY:
             vectors: list[list[float]] = []
+            _embed_content = getattr(genai, 'embed_content', None)
             for t in texts:
+                if not callable(_embed_content):
+                    vectors.append(self._fallback_embed([t])[0])
+                    continue
                 try:
-                    resp = genai.embed_content(model=self.embed_model, content=t)
-                    emb = resp.get("embedding") or resp.get("embeddings", [None])[0]
+                    resp = _embed_content(model=self.embed_model, content=t)
+                    emb = None
+                    if isinstance(resp, dict):
+                        emb = resp.get("embedding") or resp.get("embeddings", [None])[0]
+                    else:  # SDK object variant
+                        emb = getattr(resp, 'embedding', None) or getattr(resp, 'embeddings', [None])[0]
                     if emb is None:
                         raise ValueError("No embedding returned")
                     vectors.append(emb)
@@ -63,9 +87,12 @@ class GeminiClient:
             self.calls_today += 1
         if genai and API_KEY:
             try:
-                model = genai.GenerativeModel(self.gen_model)
-                resp = model.generate_content(prompt)
-                return resp.text or '{"items": []}'
+                _GenerativeModel = getattr(genai, 'GenerativeModel', None)
+                if _GenerativeModel:
+                    model = _GenerativeModel(self.gen_model)
+                    resp = model.generate_content(prompt)
+                    text = getattr(resp, 'text', None)
+                    return text or '{"items": []}'
             except Exception:
                 pass
         # fallback stub

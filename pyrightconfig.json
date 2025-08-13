@@ -1,0 +1,17 @@
+{
+  "include": [
+    "backend/app",
+    "backend/alembic"
+  ],
+  "typeCheckingMode": "standard",
+  "reportMissingImports": "error",
+  "reportMissingModuleSource": "warning",
+  "reportCallIssue": "warning",
+  "reportGeneralTypeIssues": "warning",
+  "executionEnvironments": [
+    {
+      "root": "backend/app",
+      "extraPaths": ["backend/app"]
+    }
+  ]
+}

@@ -127,20 +127,57 @@ Healthcheck script:
 bash scripts/healthcheck.sh
 ```
 
+### Environment Variables & Secrets
+
+Create `backend/.env` (a template is in `backend/.env.example`):
+
+```bash
+GOOGLE_API_KEY=your_gemini_key
+JWT_SECRET=change_me
+DAILY_CALL_LIMIT=0
+```
+
+Never commit real keys. `.gitignore` already excludes `.env` files.
+
+If a key is ever leaked, rotate it in the provider console and update your `.env` / deployment secrets immediately.
+
+### Secret Scanning Pre-Commit Hook
+
+Optional but recommended:
+
+```bash
+pip install pre-commit detect-secrets
+pre-commit install
+```
+
+Regenerate baseline when intentional changes occur:
+
+```bash
+detect-secrets scan > .secrets.baseline
+```
+
+This will block commits that introduce high-entropy potential secrets.
+
 ### Authentication & Roles
+
 JWT auth added:
+
 - POST /api/auth/register
 - POST /api/auth/login
 - GET /api/auth/me
+
 Roles: student | faculty | admin. First registered user becomes admin. Faculty/admin can approve questions at `PATCH /api/questions/{id}/approve`.
 
 ### CI
+
 GitHub Actions workflows: backend tests & frontend lint/test under `.github/workflows`.
 
 ### Metrics & Monitoring
+
 Prometheus endpoint at `/metrics`. See `monitoring/README.md`.
 
 ### TODOs / Next Steps
+
 - Real PDF parsing & OCR improvements.
 - Postgres migrations.
 - Additional unit + integration tests (embedding, generator mocks etc.).

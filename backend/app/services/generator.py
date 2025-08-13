@@ -10,7 +10,7 @@ Responsibilities:
 """
 from __future__ import annotations
 
-import json
+import json, re
 from dataclasses import dataclass
 from typing import List, Dict, Any
 from .gemini_client import CLIENT
@@ -101,36 +101,80 @@ def _validate_json(obj: dict) -> tuple[bool, str | None]:
     return True, None
 
 
+def _repair_json(text: str) -> str | None:
+    """Attempt lightweight JSON repair (truncate to last balanced brace, quote keys)."""
+    # Balance braces
+    open_count = 0
+    last_good = -1
+    for i, ch in enumerate(text):
+        if ch == '{':
+            open_count += 1
+        elif ch == '}':
+            open_count -= 1
+            if open_count == 0:
+                last_good = i
+    if last_good != -1:
+        candidate = text[: last_good + 1]
+        # naive key quoting fix: replace unquoted keys at start of line
+        candidate = re.sub(r'([,{]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)','\1"\2"\3', candidate)
+        return candidate
+    return None
+
+
 def generate(task: str, mark: int, top_k: int = 6) -> GenerationResult:
     pages = _retrieve(task, top_k)
     file_blocks = assemble_context(pages)
     user_message = build_user_message(file_blocks, task, mark)
-    prompt = SYSTEM_MESSAGE + "\n" + user_message + "\nJSON only:"  # single text prompt interface
-    raw = CLIENT.generate(prompt)
-    error = None
+    base_prompt = SYSTEM_MESSAGE + "\n" + user_message + "\nJSON only:"
+    attempts: list[str] = []
+    raw = ''
     parsed: dict[str, Any] = {}
-    try:
-        parsed = json.loads(raw)
-    except Exception as e:
-        error = f"json_parse_error: {e}"
-        parsed = {}
-    valid, verr = _validate_json(parsed) if not error else (False, error)
-    if not valid:
-        # attempt NOT_FOUND fallback if no answer content
-        status = parsed.get('status') if isinstance(parsed, dict) else None
-        if status != 'NOT_FOUND':
-            parsed = {
-                'question_id': parsed.get('question_id') if isinstance(parsed, dict) else 'NA',
-                'question_text': task,
-                'marks': mark,
-                'answer': '',
-                'answer_format': 'text',
-                'page_references': [],
-                'diagram_images': [],
-                'verbatim_quotes': [],
-                'status': 'NOT_FOUND'
-            }
-        error = verr or error or 'validation_failed'
+    error: str | None = None
+    for attempt in range(3):
+        prompt = base_prompt
+        if attempt > 0:
+            prompt += f"\n# Retry {attempt}: STRICT VALID JSON with fields {OUTPUT_FIELDS}."
+        raw = CLIENT.generate(prompt)
+        try:
+            parsed = json.loads(raw)
+            valid, verr = _validate_json(parsed)
+            if valid:
+                error = None
+                break
+            else:
+                error = verr or 'validation_failed'
+        except Exception as e:
+            # try repair
+            repaired = _repair_json(raw)
+            if repaired:
+                try:
+                    parsed = json.loads(repaired)
+                    valid, verr = _validate_json(parsed)
+                    if valid:
+                        raw = repaired  # use repaired version
+                        error = None
+                        break
+                    else:
+                        error = verr or f'validation_failed_after_repair'
+                except Exception as e2:  # pragma: no cover
+                    error = f"json_parse_error: {e2}"  # keep last
+            else:
+                error = f"json_parse_error: {e}"
+        attempts.append(error or 'unknown_error')
+    if error:
+        # fallback NOT_FOUND object
+        base_id = parsed.get('question_id') if isinstance(parsed, dict) else 'NA'
+        parsed = {
+            'question_id': base_id or 'NA',
+            'question_text': task,
+            'marks': mark,
+            'answer': '',
+            'answer_format': 'text',
+            'page_references': [],
+            'diagram_images': [],
+            'verbatim_quotes': [],
+            'status': 'NOT_FOUND'
+        }
     # ensure page references present when FOUND
     if parsed.get('status') != 'NOT_FOUND' and not parsed.get('page_references'):
         refs = []

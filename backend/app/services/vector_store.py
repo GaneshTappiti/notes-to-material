@@ -52,4 +52,17 @@ class VectorStore:
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:top_k]
 
+    def delete_by_file(self, file_id: str):
+        """Remove all embeddings whose metadata.file_id matches.
+
+        Returns count removed.
+        """
+        self._ensure_loaded()
+        before = len(self.items)
+        self.items = [it for it in self.items if it.get('metadata', {}).get('file_id') != file_id]
+        removed = before - len(self.items)
+        if removed:
+            self._persist()
+        return removed
+
 VECTOR_STORE = VectorStore()

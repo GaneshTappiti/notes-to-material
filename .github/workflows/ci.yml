@@ -26,8 +26,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Run pytest
+        env:
+          TEST_MODE: '1'
+          PYTHONPATH: backend
         run: |
-          pytest -q
+          pytest --maxfail=1 --disable-warnings -q --cov=app --cov-report=xml
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
 
   frontend-typecheck:
     runs-on: ubuntu-latest

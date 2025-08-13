@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 from fastapi.testclient import TestClient
+import os
+os.environ['EXPORT_SYNC'] = '1'
+os.environ['TEST_MODE'] = '1'
 from app.main import app
 
 def test_generate_empty(monkeypatch):
@@ -37,9 +40,9 @@ def test_export(monkeypatch):
     results_dir.mkdir(parents=True, exist_ok=True)
     payload = {'job_id': job_id, 'items':[{'question':'Q1','answers':{'2':'A2'}, 'page_references': []}]}
     (results_dir / f'{job_id}.json').write_text(json.dumps(payload))
-    r = client.post('/api/export/'+job_id)
+    r = client.post('/api/export/'+job_id, headers={'X-API-Key':'dev-key'})
     assert r.status_code == 200
     export_id = r.json()['export_id']
-    dr = client.get(f'/api/exports/{export_id}/download')
+    dr = client.get(f'/api/exports/{export_id}/download', headers={'X-API-Key':'dev-key'})
     assert dr.status_code == 200
     assert dr.headers['content-type'] == 'application/pdf'
