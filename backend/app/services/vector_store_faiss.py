@@ -25,7 +25,20 @@ import os, json, threading
 try:  # pragma: no cover
     import faiss  # type: ignore
 except ImportError:  # pragma: no cover
-    faiss = None
+    faiss = None  # type: ignore
+
+if faiss is not None:  # Provide minimal typing hints for pyright (runtime ignored)
+    try:  # pragma: no cover
+        from typing import Protocol
+
+        class _IndexLike(Protocol):  # minimal protocol for type checking only
+            def add(self, x): ...  # type: ignore[override]
+            def search(self, x, k: int): ...  # type: ignore[override]
+
+        # Hint attribute so pyright knows returned object has expected methods
+        IndexFlatIP = getattr(faiss, 'IndexFlatIP', None)  # noqa: N816
+    except Exception:  # pragma: no cover
+        pass
 
 
 PERSIST = os.getenv("PERSIST_FAISS", "1") != "0"
@@ -61,7 +74,7 @@ class _FaissStore:
                         arr = np.array(self._embeddings, dtype='float32')
                         self.dim = arr.shape[1]
                         self.index = faiss.IndexFlatIP(self.dim)  # type: ignore[attr-defined]
-                        self.index.add(arr)
+                        self.index.add(arr)  # type: ignore[call-arg]
                 except Exception:  # pragma: no cover - defensive
                     self._embeddings = []
                     self.metadatas = []
@@ -95,7 +108,7 @@ class _FaissStore:
             if self.dim != arr.shape[1]:  # defensive guard
                 return
             try:
-                self.index.add(arr)
+                self.index.add(arr)  # type: ignore[call-arg]
             except AssertionError:
                 # dimension mismatch at FAISS level; skip silently in test/dev context
                 return
@@ -112,7 +125,7 @@ class _FaissStore:
         import numpy as np
         try:
             q = np.array([embedding], dtype='float32')
-            scores, idxs = self.index.search(q, top_k)
+            scores, idxs = self.index.search(q, top_k)  # type: ignore[call-arg]
         except Exception:  # dimension mismatch or other issue
             return []
         out = []
@@ -151,7 +164,7 @@ class _FaissStore:
                     arr = np.array(self._embeddings, dtype='float32')
                     self.dim = arr.shape[1]
                     self.index = faiss.IndexFlatIP(self.dim)  # type: ignore[attr-defined]
-                    self.index.add(arr)
+                    self.index.add(arr)  # type: ignore[call-arg]
                 else:
                     self.index = None
                     self.dim = None
