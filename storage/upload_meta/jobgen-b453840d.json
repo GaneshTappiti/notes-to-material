@@ -1,0 +1,37 @@
+{
+  "file_id": "jobgen-b453840d",
+  "filename": "jobgen.pdf",
+  "page_count": 2,
+  "pages": [
+    {
+      "page_no": 1,
+      "stored_text_path": "storage\\pages\\jobgen-p1.txt"
+    },
+    {
+      "page_no": 2,
+      "stored_text_path": "storage\\pages\\jobgen-p2.txt"
+    }
+  ],
+  "pages_count": 2,
+  "pages_numeric": 2,
+  "pages_total": 2,
+  "pages_len": 2,
+  "pages_count_frontend": 2,
+  "pages_number": 2,
+  "pages_upload": 2,
+  "pages_ingested": 2,
+  "pages_indexed": 2,
+  "pages_total_count": 2,
+  "pages_simple": 2,
+  "pages_size": 2,
+  "pages_value": 2,
+  "pages_number_value": 2,
+  "pages_num": 2,
+  "pagesCount": 2,
+  "pagesTotal": 2,
+  "pagesLength": 2,
+  "pagesIngested": 2,
+  "pagesIndexed": 2,
+  "pages_count_internal": 2,
+  "ocr_status": "done"
+}

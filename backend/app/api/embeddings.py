@@ -1,7 +1,7 @@
 """Embeddings upsert + query endpoints.
 
 POST /api/embeddings/upsert
-  - Embeds pages from DB that lack vectors (tracked via simple local cache file)
+  - Embeds pages from DB that lack vectors (using database as authoritative source)
 
 GET /api/embeddings/query?q=...&k=5
   - Embeds query and returns top-k results from vector store
@@ -10,73 +10,91 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi import Query as Q
-from pathlib import Path
-import json
 from ..models import get_session, Page, PageEmbedding
 from ..services.embedding import embed_texts
 from ..services.vector_store import VECTOR_STORE
 from ..services.vector_store_faiss import FAISS_STORE
 from ..services.gemini_client import CLIENT
+from ..services.embedding_tracker import EmbeddingTracker
 
 from ..services.auth import require_role
 
 router = APIRouter(dependencies=[Depends(require_role('faculty','admin'))])
 
-EMBED_TRACK_PATH = Path('storage/embed_tracking.json')
-
-def _load_tracking():
-    if EMBED_TRACK_PATH.exists():
-        try:
-            return json.loads(EMBED_TRACK_PATH.read_text())
-        except Exception:  # pragma: no cover
-            return {}
-    return {}
-
-def _save_tracking(data):  # pragma: no cover - trivial
-    EMBED_TRACK_PATH.parent.mkdir(parents=True, exist_ok=True)
-    EMBED_TRACK_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2))
-
 @router.post('/embeddings/upsert')
 async def upsert_embeddings(limit: int = 200):
     """Embed all Page rows missing a PageEmbedding.
 
-    Previous implementation relied on a tracking JSON file. We now prefer
-    authoritative detection via absence of PageEmbedding row but still update
-    tracking file for backward compatibility (tests may assert it).
+    Uses the database as the single source of truth for tracking which pages
+    have been embedded, eliminating the need for external tracking files.
     """
-    tracking = _load_tracking()
-    done_ids = set(tracking.get('page_ids', []))  # legacy
-    to_process: list[Page] = []
-    with get_session() as session:
-        existing_emb_ids = {pe.page_id for pe in session.query(PageEmbedding).all()}  # type: ignore
-        for p in session.query(Page).order_by(Page.id):  # type: ignore
-            if p.id in existing_emb_ids:
-                continue
-            if p.id in done_ids:  # legacy skip
-                continue
-            to_process.append(p)
-            if len(to_process) >= limit:
-                break
+    # Get pages that need embedding
+    to_process = EmbeddingTracker.get_pending_pages(limit)
+
     if not to_process:
-        return {'processed': 0, 'message': 'nothing to do'}
+        return {'processed': 0, 'message': 'All pages have embeddings'}
+
+    # Generate embeddings for new pages
     texts = [p.text for p in to_process]
     embeddings = embed_texts(texts)
-    metadatas = [{'file_id': getattr(p,'file_id',None), 'file_name': p.file_name, 'page_no': p.page_no, 'text': p.text[:800]} for p in to_process]
+    metadatas = [
+        {
+            'file_id': getattr(p, 'file_id', None),
+            'file_name': p.file_name,
+            'page_no': p.page_no,
+            'text': p.text[:800]
+        }
+        for p in to_process
+    ]
+
+    # Add to vector stores
     VECTOR_STORE.add_batch(embeddings, metadatas)
     if FAISS_STORE.available():
         FAISS_STORE.add_batch(embeddings, metadatas)
-    # Persist PageEmbedding rows
-    with get_session() as session:
-        for p, emb in zip(to_process, embeddings):
-            if p.id is None:
-                continue
-            pe = PageEmbedding(page_id=p.id, file_id=getattr(p,'file_id',None), page_no=p.page_no, embedding=emb)
-            session.add(pe)
-        session.commit()
-    done_ids.update(p.id for p in to_process if p.id is not None)
-    tracking['page_ids'] = list(done_ids)
-    _save_tracking(tracking)
-    return {'processed': len(to_process), 'stored': len(to_process)}
+
+    # Bulk mark as embedded in database
+    embedding_records = []
+    for p, emb in zip(to_process, embeddings):
+        if p.id is not None:
+            embedding_records.append({
+                'page_id': p.id,
+                'file_id': getattr(p, 'file_id', None),
+                'page_no': p.page_no,
+                'embedding': emb
+            })
+
+    created_count = EmbeddingTracker.bulk_mark_embedded(embedding_records)
+
+    return {
+        'processed': len(to_process),
+        'stored': created_count,
+        'message': f'Successfully embedded {len(to_process)} pages'
+    }
+
+@router.get('/embeddings/status')
+async def get_embedding_status():
+    """Get statistics about current embedding status."""
+    return EmbeddingTracker.get_embedding_status()
+
+@router.delete('/embeddings/reset')
+async def reset_embeddings():
+    """Reset all embeddings - useful for development/testing."""
+    deleted_count = EmbeddingTracker.reset_all_embeddings()
+
+    return {
+        'deleted_embeddings': deleted_count,
+        'message': 'All embedding database records have been reset'
+    }
+
+@router.post('/embeddings/cleanup')
+async def cleanup_orphaned_embeddings():
+    """Remove embedding records for pages that no longer exist."""
+    cleaned_count = EmbeddingTracker.cleanup_orphaned_embeddings()
+
+    return {
+        'cleaned_records': cleaned_count,
+        'message': f'Removed {cleaned_count} orphaned embedding records'
+    }
 
 @router.get('/embeddings/query')
 async def query_embeddings(q: str = Q(...), k: int = Q(5, ge=1, le=50)):

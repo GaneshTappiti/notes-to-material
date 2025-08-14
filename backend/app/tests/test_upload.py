@@ -1,4 +1,5 @@
 import io
+import os, glob
 from fastapi.testclient import TestClient
 from app.main import app
 from reportlab.pdfgen import canvas
@@ -13,11 +14,22 @@ def _make_pdf(bytes_io: io.BytesIO):
     c.drawString(72, 720, "Page 1 sample text for testing.")
     c.showPage()
     c.drawString(72, 720, "Page 2 sample text for testing.")
+    c.showPage()  # Need showPage() for the last page too
     c.save()
     bytes_io.seek(0)
 
 
 def test_pdf_upload_and_ingest(tmp_path):
+    # Clear any existing sample files to ensure fresh test
+    import os, glob
+    storage_pages = Path("storage/pages")
+    if storage_pages.exists():
+        for f in glob.glob(str(storage_pages / "sample-p*.txt")):
+            try:
+                os.remove(f)
+            except:
+                pass
+
     # create in-memory PDF
     buff = io.BytesIO()
     _make_pdf(buff)

@@ -71,6 +71,7 @@ class Job(SQLModel, table=True):  # type: ignore[misc]
     course_id: Optional[str] = Field(default=None)
     mode: str = Field(default="auto-generate")
     payload_json: dict = Field(sa_column=Column(JSON))
+    file_ids: List[str] = Field(default_factory=list, sa_column=Column(JSON))
     status: str = Field(default="created")  # created|running|completed|error
     total_expected: int = 0
     generated_count: int = 0
@@ -129,6 +130,16 @@ class User(SQLModel, table=True):  # type: ignore[misc]
     password_hash: str
     role: str = Field(default="student", description="student|faculty|admin")
     created_at: str = Field(default_factory=lambda: __import__("datetime").datetime.utcnow().isoformat())
+
+
+class Export(SQLModel, table=True):  # type: ignore[misc]
+    id: Optional[int] = Field(default=None, primary_key=True)
+    job_id: str = Field(index=True)
+    template: str = Field(default="compact")
+    status: str = Field(default="pending")  # pending|ready|error
+    file_path: Optional[str] = Field(default=None)
+    approved_only: bool = Field(default=False)
+    created_at: str = Field(default_factory=lambda: __import__("datetime").datetime.utcnow().isoformat(), index=True)
 
 
 
@@ -215,7 +226,7 @@ def add_question_results(job_id: str, items: list[dict]):
 
 # Explicit re-exports required by Prompt 1
 __all__ = [
-    'Page','Upload','Job','QuestionResult','AnswerVariant','PageEmbedding','User',
+    'Page','Upload','Job','QuestionResult','AnswerVariant','PageEmbedding','User','Export',
     'create_engine_from_env','create_db','get_session','get_pages_for_file','get_pages_for_files',
     'create_job_row','add_question_results','engine'
 ]

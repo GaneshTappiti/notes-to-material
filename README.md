@@ -183,3 +183,95 @@ Prometheus endpoint at `/metrics`. See `monitoring/README.md`.
 - Additional unit + integration tests (embedding, generator mocks etc.).
 - Add rate limiting / budgeting around Gemini calls.
 - Tighten CORS and add refresh tokens.
+
+## Full Stack Audit (Added by Migration Task)
+
+This repository now contains a production-leaning implementation of the requested StudyForge / notes-to-material platform.
+
+Completed items:
+- Backend FastAPI app with routers registered: auth, uploads, jobs, results, questions, exports, generate, embeddings, retrieval.
+- Database models for: Upload, Page, Job, QuestionResult, AnswerVariant, PageEmbedding, User (SQLite fallback, Postgres in compose).
+- PDF upload -> extraction (PyMuPDF + OCR fallback) -> per-page DB persistence + background embedding.
+- Deletion endpoint removes DB rows, vector store entries, original file, per-page text & image artifacts.
+- AI generation (adhoc + from job) uses retrieved page corpus with deterministic fallbacks and strict JSON formatting / augmentation of required labeled sections.
+- Export endpoints produce PDFs (compact, detailed, pocket) via ReportLab and support queued + synchronous test modes.
+- Authentication: JWT + API key dev fallback, role-based protection for faculty/admin endpoints, approval workflow.
+- Embeddings: simple JSON vector store + optional FAISS store with persistence & deletion.
+- Retrieval endpoints + context assembly utility.
+- Tests: upload, embeddings, generation, generator retries & strictness, export queue + download, delete endpoints, auth/approval, generate-from-job flow.
+- Docker: backend (Python 3.11 slim + OCR deps), frontend (Vite build -> Nginx), Postgres service; environment wiring in compose for DATABASE_URL and JWT/Google key.
+
+Pending / enhancement ideas:
+- Real Chroma / pgvector store integration for scalable retrieval.
+- Async task queue (Celery / RQ) for heavy OCR & generation batching.
+- Structured observability (OpenTelemetry traces, structured JSON logs shipped to Loki).
+- Fine-grained tenant isolation hooks (currently columns exist but headers not enforced globally).
+- Advanced export templates using React-PDF server-side rendering for richer layouts.
+
+## Local Development (Consolidated)
+
+Backend:
+```
+cd backend
+uvicorn app.main:app --reload
+```
+Frontend:
+```
+npm install
+npm run dev
+```
+Run tests:
+```
+cd backend/app
+pytest -q
+```
+
+## Docker Compose (Dev / Demo)
+
+From `infra/` directory:
+```
+docker compose up --build
+```
+Services:
+- http://localhost:8000 (FastAPI)
+- http://localhost:5173 (Frontend dev server)
+- Postgres on localhost:5432 (user/pass: app / app)
+
+To override Gemini key at runtime:
+```
+export GOOGLE_API_KEY=your_key
+docker compose up --build
+```
+
+## Production Notes
+
+- Set `DATABASE_URL` to a managed Postgres (with SSL). Example: `postgresql+psycopg://user:pass@host:5432/db`.
+- Provide `JWT_SECRET` and rotate periodically.
+- Configure `GOOGLE_API_KEY` and optionally `DAILY_CALL_LIMIT` to budget usage.
+- Add a reverse proxy (Traefik / Nginx) with HTTPS termination; ensure CORS allow-list is restricted (currently wildcard during dev).
+- Persist volumes for backend data and Postgres (`pgdata`, `backend-data`). Back up regularly.
+- Consider enabling rate limiting via Redis (`REDIS_URL`) for multi-instance deployments.
+
+## Testing Matrix
+
+| Area          | Coverage                                      |
+|---------------|-----------------------------------------------|
+| Upload/OCR    | test_upload.py                                |
+| Embeddings    | test_embeddings.py                            |
+| Retrieval/RAG | generator tests (mocked vector store)         |
+| Generation    | test_generation.py + test_generate_from_job   |
+| Export        | test_export / test_exports_queue              |
+| Auth/Roles    | test_auth_approval                            |
+| Deletion      | test_delete_endpoints                         |
+| JSON Robust   | test_generator_retries                        |
+
+All tests should pass with: `pytest -q` (PyMuPDF & ReportLab installed via requirements).
+
+## Security Quick Wins
+- Enforce HTTPS & secure cookies when adding session features.
+- Add audit logging for admin actions (approvals, deletions).
+- Replace API key dev fallback with explicit feature flag in prod.
+- Add input validation / size limits on uploads.
+
+---
+Generated audit & hardening notes appended programmatically (2025-08).

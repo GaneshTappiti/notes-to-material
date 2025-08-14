@@ -4,7 +4,12 @@ services:
   backend:
     build: ../backend
     environment:
-      - STORAGE_PATH=/data
+      STORAGE_PATH: /data
+      # Use Postgres in compose (falls back to SQLite if unset locally)
+      DATABASE_URL: postgresql+psycopg://app:app@postgres:5432/app
+      # Minimal auth / AI env placeholders (override in production secrets manager)
+      JWT_SECRET: change_me_compose  # pragma: allowlist secret
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
     volumes:
       - ../backend/app:/app/app:ro
       - backend-data:/data

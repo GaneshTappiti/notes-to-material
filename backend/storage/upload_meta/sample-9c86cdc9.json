@@ -1,0 +1,16 @@
+{
+  "file_id": "sample-9c86cdc9",
+  "filename": "sample.pdf",
+  "page_count": 2,
+  "pages": [
+    {
+      "page_no": 1,
+      "stored_text_path": "storage\\pages\\sample-p1.txt"
+    },
+    {
+      "page_no": 2,
+      "stored_text_path": "storage\\pages\\sample-p2.txt"
+    }
+  ],
+  "ocr_status": "done"
+}

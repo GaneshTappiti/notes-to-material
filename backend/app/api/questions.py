@@ -2,10 +2,11 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 import json
 from pathlib import Path
-from .jobs import QUESTION_TO_JOB, JOBS, RESULTS_DIR
 from ..services.auth import require_role, current_user
 from ..models import User, QuestionResult, get_session, create_db
 from datetime import datetime
+
+RESULTS_DIR = Path("storage/job_results")
 
 router = APIRouter()
 
@@ -70,23 +71,7 @@ async def patch_question(qid: str, payload: QuestionPatch):
             qr.raw_model_output = rmo
             session.commit()
             return {"job_id": qr.job_id, "question": rmo}
-    # Fallback legacy path
-    job_id = QUESTION_TO_JOB.get(qid)
-    if not job_id:
-        raise HTTPException(status_code=404, detail="Question not found")
-    data, fp = _load_job_items(job_id)
-    items = data.get('items', [])
-    target = next((it for it in items if it.get('id') == qid), None)
-    if not target:
-        raise HTTPException(status_code=404, detail="Question missing in job")
-    patch = payload.model_dump(exclude_unset=True)
-    target.update(patch)
-    if fp:
-        fp.write_text(json.dumps(data, ensure_ascii=False, indent=2))
-    job = JOBS.get(job_id)
-    if job:
-        job['results'] = items
-    return {"job_id": job_id, "question": target}
+    raise HTTPException(status_code=404, detail="Question not found")
 
 @router.delete('/questions/{qid}')
 async def delete_question(qid: str):
@@ -98,19 +83,7 @@ async def delete_question(qid: str):
             session.delete(qr)
             session.commit()
             return {"job_id": job_id, "deleted": qid}
-    # legacy fallback
-    job_id = QUESTION_TO_JOB.pop(qid, None)
-    if not job_id:
-        raise HTTPException(status_code=404, detail="Question not found")
-    data, fp = _load_job_items(job_id)
-    items = [it for it in data.get('items', []) if it.get('id') != qid]
-    data['items'] = items
-    if fp:
-        fp.write_text(json.dumps(data, ensure_ascii=False, indent=2))
-    job = JOBS.get(job_id)
-    if job:
-        job['results'] = items
-    return {"job_id": job_id, "deleted": qid, "remaining": len(items)}
+    raise HTTPException(status_code=404, detail="Question not found")
 
 
 @router.patch('/questions/{qid}/approve')
@@ -126,23 +99,4 @@ async def approve_question(qid: str, user: User = Depends(require_role('faculty'
             qr.raw_model_output = rmo
             session.commit()
             return {"job_id": qr.job_id, "question": rmo}
-    # fallback legacy
-    job_id = QUESTION_TO_JOB.get(qid)
-    if not job_id:
-        raise HTTPException(status_code=404, detail="Question not found")
-    data, fp = _load_job_items(job_id)
-    items = data.get('items', [])
-    target = next((it for it in items if it.get('id') == qid), None)
-    if not target:
-        raise HTTPException(status_code=404, detail="Question missing in job")
-    target['approval'] = {
-        'approved_at': datetime.utcnow().isoformat(),
-        'approver_id': user.id,
-        'approver_role': user.role
-    }
-    if fp:
-        fp.write_text(json.dumps(data, ensure_ascii=False, indent=2))
-    job = JOBS.get(job_id)
-    if job:
-        job['results'] = items
-    return {"job_id": job_id, "question": target}
+    raise HTTPException(status_code=404, detail="Question not found")

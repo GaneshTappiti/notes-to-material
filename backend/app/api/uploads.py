@@ -16,6 +16,7 @@ from __future__ import annotations
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends
 from pathlib import Path
 import os, uuid, json
+from datetime import datetime
 from ..services.pdf_extract import extract_pages
 from ..models import Page, PageEmbedding, Upload, get_session, create_db
 from ..services.vector_store import VECTOR_STORE
@@ -36,36 +37,45 @@ def _gen_file_id(filename: str) -> str:
     return f"{safe}-{uuid.uuid4().hex[:8]}"
 
 def _background_embed(file_id: str):  # simple sequential embedding using existing upsert logic for new pages
-    from ..api.embeddings import _load_tracking, _save_tracking, EMBED_TRACK_PATH
+    from ..services.embedding_tracker import EmbeddingTracker
     from ..services.embedding import embed_texts
+    from ..services.vector_store import VECTOR_STORE
     from ..services.vector_store_faiss import FAISS_STORE
-    tracking = _load_tracking()
-    done_ids = set(tracking.get('page_ids', []))
+
+    # Get pages for this file that need embedding
     new_pages: list[Page] = []
     with get_session() as session:
+        # Get all page IDs that already have embeddings
+        embedded_page_ids = {pe.page_id for pe in session.query(PageEmbedding).all()}
+
+        # Find pages from this file that don't have embeddings
         for p in session.query(Page).filter(Page.file_id == file_id):  # type: ignore
-            if p.id not in done_ids:
+            if p.id not in embedded_page_ids:
                 new_pages.append(p)
+
     if not new_pages:
         return
+
     texts = [p.text for p in new_pages]
     embeddings = embed_texts(texts)
     metadatas = [{'file_id': p.file_id, 'file_name': p.file_name, 'page_no': p.page_no, 'text': p.text[:800]} for p in new_pages]
-    from ..services.vector_store import VECTOR_STORE
+
     VECTOR_STORE.add_batch(embeddings, metadatas)
     if FAISS_STORE.available():
         FAISS_STORE.add_batch(embeddings, metadatas)
-    # Persist PageEmbedding rows
-    with get_session() as session:
-        for p, emb in zip(new_pages, embeddings):
-            if p.id is None:
-                continue
-            pe = PageEmbedding(page_id=p.id, file_id=p.file_id, page_no=p.page_no, embedding=emb)
-            session.add(pe)
-        session.commit()
-    done_ids.update(p.id for p in new_pages if p.id is not None)
-    tracking['page_ids'] = list(done_ids)
-    _save_tracking(tracking)
+
+    # Use the new embedding tracker to mark pages as embedded
+    embedding_records = []
+    for p, emb in zip(new_pages, embeddings):
+        if p.id is not None:
+            embedding_records.append({
+                'page_id': p.id,
+                'file_id': p.file_id,
+                'page_no': p.page_no,
+                'embedding': emb
+            })
+
+    EmbeddingTracker.bulk_mark_embedded(embedding_records)
 
 @router.post("/uploads")
 async def upload_file(background: BackgroundTasks, file: UploadFile = File(...)):
@@ -113,44 +123,64 @@ async def upload_file(background: BackgroundTasks, file: UploadFile = File(...))
             up.page_count = len(pages)
             up.ocr_status = 'done'
         session.commit()
+
+    # Return canonical response only - remove all the redundant aliases
+    # Prepare canonical response with pages information for backward compatibility
     summary_pages = [{"page_no": p['page_no'], "stored_text_path": p.get('text_path')} for p in pages]
-    # Response shape augmented to satisfy both legacy backend tests (page_count + pages list)
-    # and current frontend expectations (pages numeric + ocr_status field).
+    canonical_response = {
+        "file_id": file_id,
+        "filename": file.filename,
+        "page_count": len(pages),
+        "pages": summary_pages,
+        "created_at": datetime.utcnow().isoformat()
+    }
+
+    # Save legacy metadata for backward compatibility (will be removed later)
     meta = {
         "file_id": file_id,
         "filename": file.filename,
         "page_count": len(pages),
-        "pages": summary_pages,            # detailed per‑page list
-        "pages_count": len(pages),         # alias (defensive)
-        "pages_numeric": len(pages),       # alias (defensive)
-        "pages_total": len(pages),         # alias (defensive)
-        "pages_len": len(pages),           # alias (defensive)
-        "pages_count_frontend": len(pages),# alias (defensive)
-        "pages_number": len(pages),        # alias (defensive)
-        "pages_upload": len(pages),        # alias (defensive)
-        "pages_ingested": len(pages),      # alias (defensive)
-        "pages_indexed": len(pages),       # alias (defensive)
-        "pages_total_count": len(pages),   # alias (defensive)
-        # Frontend simple fields:
-        "pages_simple": len(pages),        # alias (defensive)
-        "pages_size": len(pages),          # alias (defensive)
-        "pages_value": len(pages),         # alias (defensive)
-        "pages_number_value": len(pages),  # alias (defensive)
-        "pages_num": len(pages),           # alias (defensive)
-        "pagesCount": len(pages),          # camelCase variant
-        "pagesTotal": len(pages),          # camelCase variant
-        "pagesLength": len(pages),         # camelCase variant
-        "pagesIngested": len(pages),       # camelCase variant
-        "pagesIndexed": len(pages),        # camelCase variant
-        "pages_count_internal": len(pages),
-        # Minimal expected keys by current lightweight frontend api.ts (maps page_count -> pages):
         "pages": summary_pages,
         "ocr_status": "done"
     }
     (PAGE_DATA_DIR / f"{file_id}.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+
     # Kick off background embedding
     background.add_task(_background_embed, file_id)
-    return meta
+    return canonical_response
+
+@router.get('/uploads/{file_id}/pages')
+async def get_upload_pages(file_id: str):
+    """Return detailed page information for an upload.
+
+    Returns: file_id, filename, page_count, pages: [{page_no, text_preview, image_paths}]
+    """
+    create_db()
+    with get_session() as session:
+        # Get Upload info
+        upload = session.query(Upload).filter(Upload.file_id == file_id).first()  # type: ignore
+        if not upload:
+            raise HTTPException(status_code=404, detail="Upload not found")
+
+        # Get all pages for this file
+        pages = session.query(Page).filter(Page.file_id == file_id).order_by(Page.page_no).all()  # type: ignore
+
+        page_data = []
+        for page in pages:
+            # Create text preview (first 200 characters)
+            text_preview = page.text[:200] + "..." if len(page.text) > 200 else page.text
+            page_data.append({
+                "page_no": page.page_no,
+                "text_preview": text_preview,
+                "image_paths": page.image_paths or []
+            })
+
+        return {
+            "file_id": file_id,
+            "filename": upload.file_name,
+            "page_count": upload.page_count,
+            "pages": page_data
+        }
 
 @router.get('/uploads/{file_id}')
 async def get_upload(file_id: str):
@@ -160,6 +190,19 @@ async def get_upload(file_id: str):
     synchronous in current implementation (embedding runs in background but not
     required for basic readiness), we treat existing meta as status=done.
     """
+    create_db()
+    with get_session() as session:
+        upload = session.query(Upload).filter(Upload.file_id == file_id).first()  # type: ignore
+        if upload:
+            return {
+                "file_id": file_id,
+                "status": upload.ocr_status,
+                "page_count": upload.page_count,
+                "filename": upload.file_name,
+                "created_at": upload.created_at
+            }
+
+    # Fallback to JSON metadata for legacy support
     meta_path = PAGE_DATA_DIR / f"{file_id}.json"
     if not meta_path.exists():
         raise HTTPException(status_code=404, detail="Not found")
@@ -169,7 +212,7 @@ async def get_upload(file_id: str):
         raise HTTPException(status_code=500, detail="Corrupt metadata")
     # Normalize minimal polling contract
     page_count = meta.get('page_count') or meta.get('pagesCount') or len(meta.get('pages') or [])
-    return {"file_id": file_id, "status": "done", "pages": page_count, "filename": meta.get('filename')}
+    return {"file_id": file_id, "status": "done", "page_count": page_count, "filename": meta.get('filename')}
 
 @router.delete('/uploads/{file_id}')
 async def delete_upload(file_id: str):

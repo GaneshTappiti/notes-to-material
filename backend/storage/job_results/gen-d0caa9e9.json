@@ -1,0 +1,17 @@
+{
+  "job_id": "gen-d0caa9e9",
+  "items": [
+    {
+      "question": "Explain [Score=0.596] Page 1 sample text for?",
+      "answers": {
+        "2": "Definition: Brief definition of [Score=0.596] Page 1 sample text for.\nKey Points: • Point 1 • Point 2 (mark depth 2).\nDiagram: Textual description (no external facts).\nExample: Simple example based on [Score=0.596] Page 1 sample text for.\nMarking Scheme: 2 discrete scoring elements clearly stated.",
+        "5": "Definition: Brief definition of [Score=0.596] Page 1 sample text for.\nKey Points: • Point 1 • Point 2 (mark depth 5).\nDiagram: Textual description (no external facts).\nExample: Simple example based on [Score=0.596] Page 1 sample text for.\nMarking Scheme: 5 discrete scoring elements clearly stated.",
+        "10": "Definition: Brief definition of [Score=0.596] Page 1 sample text for.\nKey Points: • Point 1 • Point 2 (mark depth 10).\nDiagram: Textual description (no external facts).\nExample: Simple example based on [Score=0.596] Page 1 sample text for.\nMarking Scheme: 10 discrete scoring elements clearly stated."
+      },
+      "page_references": [
+        "sample-9c86cdc9:1"
+      ],
+      "id": "dec55364"
+    }
+  ]
+}

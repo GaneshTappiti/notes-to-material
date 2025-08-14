@@ -42,9 +42,23 @@ def test_role_based_approval_flow(tmp_path):
     results_dir.mkdir(parents=True, exist_ok=True)
     qid = 'q1'
     results_dir.joinpath(f'{job_id}.json').write_text('{"items": [{"id": "q1", "question": "What?", "answers": {"1": "Ans"}}]}')
-    # map qid to job id for in-memory structure
-    from app.api.jobs import QUESTION_TO_JOB
-    QUESTION_TO_JOB[qid] = job_id
+
+    # Create test database record for the question-job relationship
+    from app.models import create_db, get_session, QuestionResult as QuestionResultModel
+    create_db()
+    with get_session() as session:
+        question_result = QuestionResultModel(
+            question_id=qid,
+            job_id=job_id,
+            mark_value=10,
+            question_text="What?",
+            answer="Sample answer",
+            answer_format="text",
+            page_references=[],
+            approved=False
+        )
+        session.add(question_result)
+        session.commit()
 
     # Student tries approval -> 403
     r = client.patch(f'/api/questions/{qid}/approve', headers={'Authorization': f'Bearer {student_token}'})

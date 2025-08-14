@@ -35,16 +35,35 @@ def _merge_results(base, extra, k: int):
 
 
 @router.get('/retrieval/topk')
-async def topk(q: str = Q(...), k: int = Q(6, ge=1, le=50)):
+async def topk(q: str = Q(...), k: int = Q(6, ge=1, le=50), file_ids: str = Q(None)):
+    """Retrieve top-k pages, optionally filtered by file_ids.
+
+    Args:
+        q: Query string
+        k: Number of results to return
+        file_ids: Optional comma-separated list of file_ids to filter by
+    """
     if not q.strip():
         raise HTTPException(status_code=400, detail='Empty query')
+
+    # Parse file_ids filter if provided
+    filter_file_ids = None
+    if file_ids:
+        filter_file_ids = set(fid.strip() for fid in file_ids.split(',') if fid.strip())
+
     emb = CLIENT.embed([q])[0]
     base = VECTOR_STORE.query(emb, top_k=k)
     faiss = FAISS_STORE.query(emb, top_k=k) if FAISS_STORE.available() else []
     merged = _merge_results(base, faiss, k)
+
     pages = []
     for r in merged:
         md = r.get('metadata', {})
+
+        # Apply file_ids filter if specified
+        if filter_file_ids and md.get('file_id') not in filter_file_ids:
+            continue
+
         text = md.get('text', '')
         if len(text) > 800:
             text = text[:800] + '…'
@@ -55,7 +74,9 @@ async def topk(q: str = Q(...), k: int = Q(6, ge=1, le=50)):
             'text': text,
             'score': r.get('score', 0.0)
         })
-    return {'query': q, 'count': len(pages), 'pages': pages}
+
+    # Return only the top k after filtering
+    return {'query': q, 'count': len(pages[:k]), 'pages': pages[:k]}
 
 
 def assemble_context(pages: list[dict]) -> str:

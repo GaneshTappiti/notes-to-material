@@ -51,7 +51,7 @@ class GenerationResult:
     error: str | None = None
 
 
-def _retrieve(query: str, k: int) -> List[dict]:
+def _retrieve(query: str, k: int, file_ids: List[str] | None = None) -> List[dict]:
     emb = CLIENT.embed([query])[0]
     base = VECTOR_STORE.query(emb, top_k=k)
     extra = []
@@ -65,6 +65,11 @@ def _retrieve(query: str, k: int) -> List[dict]:
     merged = []
     for r in base + extra:
         md = r.get('metadata', {})
+
+        # Apply file_ids filter if specified
+        if file_ids and md.get('file_id') not in file_ids:
+            continue
+
         sig = (md.get('file_id'), md.get('file_name'), md.get('page_no'))
         if sig in seen:
             continue
@@ -121,8 +126,8 @@ def _repair_json(text: str) -> str | None:
     return None
 
 
-def generate(task: str, mark: int, top_k: int = 6) -> GenerationResult:
-    pages = _retrieve(task, top_k)
+def generate(task: str, mark: int, top_k: int = 6, file_ids: List[str] | None = None) -> GenerationResult:
+    pages = _retrieve(task, top_k, file_ids)
     file_blocks = assemble_context(pages)
     user_message = build_user_message(file_blocks, task, mark)
     base_prompt = SYSTEM_MESSAGE + "\n" + user_message + "\nJSON only:"

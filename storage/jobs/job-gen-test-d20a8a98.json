@@ -1,0 +1,15 @@
+{
+  "job_id": "job-gen-test-d20a8a98",
+  "items": [
+    {
+      "question": "Explain the main concept found in the corpus.",
+      "answers": {
+        "2": "Definition: Concept overview.\nKey Points: bullet list sized for 2 marks.\nDiagram: textual description.\nExample: grounded illustrative example.\nMarking Scheme: 2 scoring elements explicitly enumerated.",
+        "5": "Definition: Concept overview.\nKey Points: bullet list sized for 5 marks.\nDiagram: textual description.\nExample: grounded illustrative example.\nMarking Scheme: 5 scoring elements explicitly enumerated.",
+        "10": "Definition: Concept overview.\nKey Points: bullet list sized for 10 marks.\nDiagram: textual description.\nExample: grounded illustrative example.\nMarking Scheme: 10 scoring elements explicitly enumerated."
+      },
+      "page_references": [],
+      "id": "8b8b9d51"
+    }
+  ]
+}

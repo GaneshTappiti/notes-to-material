@@ -2,7 +2,7 @@
 
 POST /api/generate
   Body: {"job_id": str, "marks_type": str}
-  - Loads job info from JOBS (created via /api/jobs) to discover associated file_ids
+  - Load job from database to discover associated file_ids
   - Fetches text from Page rows for those file_ids
   - Builds a prompt and queries Google Generative AI (via services.gemini_client.CLIENT)
   - Persists output JSON to storage/jobs/<job_id>.json
@@ -18,7 +18,6 @@ from pydantic import BaseModel
 from pathlib import Path
 import json, uuid, textwrap
 from ..models import get_pages_for_files
-from .jobs import JOBS  # legacy fallback (deprecated)
 from ..services.gemini_client import CLIENT
 from ..models import get_session, Job as JobModel, add_question_results, create_db
 
@@ -43,18 +42,17 @@ def _parse_marks(marks_type: str) -> list[int]:
 
 @router.post('/generate/from_job')
 async def generate_from_job(spec: GenerateSpec):
-    # Prefer DB
+    # Get job from DB
     create_db()
     job = None
     with get_session() as session:
         job = session.query(JobModel).filter(JobModel.job_id == spec.job_id).first()  # type: ignore
     if job is None:
-        # fallback legacy
-        legacy = JOBS.get(spec.job_id)
-        if not legacy:
-            raise HTTPException(status_code=404, detail="Job not found")
-        file_ids = legacy.get('payload', {}).get('files') or []
-    else:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Get file_ids from job - use file_ids field if available, fallback to payload
+    file_ids = job.file_ids or []
+    if not file_ids:
         payload = job.payload_json or {}
         file_ids = (payload.get('files') if isinstance(payload, dict) else []) or []
     if not file_ids:
@@ -125,8 +123,5 @@ async def generate_from_job(spec: GenerateSpec):
             db_job.generated_count = len(items)
             db_job.found_count = len(items)
             session.commit()
-    # Mirror into legacy dict
-    legacy = JOBS.get(spec.job_id)
-    if legacy is not None:
-        legacy['results'] = items
+
     return {"job_id": spec.job_id, "questions": items, "count": len(items)}

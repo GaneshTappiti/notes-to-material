@@ -55,11 +55,7 @@ class JobCreate(BaseModel):
     questions_per_mark: Dict[str, int] | None = None
     options: dict | None = None
 
-# Legacy in-memory mapping maintained only for backward compatibility with
-# tests that craft job result JSON files directly. Primary source of truth
-# is now the database (Job / QuestionResult tables).
-JOBS: dict = {}  # deprecated state
-QUESTION_TO_JOB: dict[str, str] = {}
+# Legacy in-memory stores have been removed - using DB as single source of truth
 RESULTS_DIR = Path("storage/job_results")
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -89,7 +85,7 @@ class UpdateItemRequest(BaseModel):
     page_references: List[str] | None = None
     status: str | None = None  # e.g., approved, draft
 
-def _retrieve_embeddings(query: str, top_k: int):
+def _retrieve_embeddings(query: str, top_k: int, file_ids: List[str] | None = None):
     emb = CLIENT.embed([query])[0]
     base_results = VECTOR_STORE.query(emb, top_k=top_k)
     if FAISS_STORE.available():
@@ -100,7 +96,13 @@ def _retrieve_embeddings(query: str, top_k: int):
     seen = set()
     merged = []
     for r in base_results + faiss_results:
-        sig = tuple(sorted(r.get('metadata', {}).items()))
+        md = r.get('metadata', {})
+
+        # Apply file_ids filter if specified
+        if file_ids and md.get('file_id') not in file_ids:
+            continue
+
+        sig = tuple(sorted(md.items()))
         if sig in seen:
             continue
         seen.add(sig)
@@ -128,6 +130,7 @@ def _auto_generate_job(job_id: str):  # background
         if not job_row:
             return
         payload = job_row.payload_json
+        file_ids = job_row.file_ids  # Get file_ids for scoped retrieval
         qpm = payload.get('questions_per_mark') or {}
         marks = sorted({int(m) for m in (payload.get('marks') or qpm.keys())})
         generated_questions: List[str] = []
@@ -138,7 +141,7 @@ def _auto_generate_job(job_id: str):  # background
             while count < target and attempts < target * 5:
                 attempts += 1
                 task = f"Generate a {mark}-mark question"  # simple placeholder; could use notes context
-                result = strict_generate(task, mark, top_k=6)
+                result = strict_generate(task, mark, top_k=6, file_ids=file_ids)
                 qtext = result.data.get('question_text','')
                 if not qtext or _is_duplicate(qtext, generated_questions):
                     continue
@@ -176,13 +179,20 @@ async def create_job(payload: JobCreate, background: BackgroundTasks):
     total_expected = _calc_total_expected(payload.questions_per_mark)
     # Persist job row immediately
     with get_session() as session:
-        row = JobModel(job_id=job_id, job_name=payload.job_name, course_id=payload.course_id, mode=payload.mode, payload_json=payload.model_dump(), status='running' if payload.mode == 'auto-generate' else 'created', total_expected=total_expected)
+        row = JobModel(
+            job_id=job_id,
+            job_name=payload.job_name,
+            course_id=payload.course_id,
+            mode=payload.mode,
+            payload_json=payload.model_dump(),
+            file_ids=payload.files,  # Store file_ids from payload
+            status='running' if payload.mode == 'auto-generate' else 'created',
+            total_expected=total_expected
+        )
         session.add(row)
         session.commit()
     if payload.mode == 'auto-generate':
         background.add_task(_auto_generate_job, job_id)
-    # Maintain legacy dict entry (not authoritative)
-    JOBS[job_id] = {"status": 'running' if payload.mode == 'auto-generate' else 'created', "payload": payload.model_dump(), "progress": 0, "results": [], "created_at": datetime.utcnow().isoformat()}
     return {"job_id": job_id, "status": 'running' if payload.mode == 'auto-generate' else 'created'}
 
 @router.get('/jobs/{job_id}/status')
@@ -190,11 +200,7 @@ async def job_status(job_id: str):
     with get_session() as session:
         db_row = session.query(JobModel).filter(JobModel.job_id == job_id).first()  # type: ignore
         if not db_row:
-            # legacy fallback
-            job = JOBS.get(job_id)
-            if not job:
-                return {"error": "not_found"}
-            return {"job_id": job_id, "status": job.get("status"), "progress": job.get("progress",0)}
+            return {"error": "not_found"}
         return {
             'job_id': job_id,
             'status': db_row.status,
@@ -299,11 +305,10 @@ async def generate(payload: GenerateRequest):
     _apply_citations(data, ctx)
     items = data.get("items", [])
     job_id = f"gen-{uuid.uuid4().hex[:8]}"
-    # Assign stable ids and map
+    # Assign stable ids for items that don't have them
     for it in items:
         if 'id' not in it:
             it['id'] = uuid.uuid4().hex[:8]
-        QUESTION_TO_JOB[it['id']] = job_id
     # Persist Job + QuestionResults
     create_db()
     with get_session() as session:
@@ -336,7 +341,6 @@ async def delete_job(job_id: str):
         session.query(QuestionResult).filter(QuestionResult.job_id == job_id).delete()  # type: ignore
         session.query(JobModel).filter(JobModel.job_id == job_id).delete()  # type: ignore
         session.commit()
-    JOBS.pop(job_id, None)
     fp = RESULTS_DIR / f"{job_id}.json"
     if fp.exists():
         try:
@@ -395,9 +399,6 @@ async def update_item(payload: UpdateItemRequest):
                 session.commit()
     except Exception:
         pass
-    job = JOBS.get(payload.job_id)
-    if job:
-        job['results'] = items
     return {"status": "updated", "item": item}
 
 from fastapi import Path as FPath, Body
@@ -469,10 +470,6 @@ async def patch_job_item(
                 session.commit()
     except Exception:
         pass
-    # Mirror legacy
-    job = JOBS.get(job_id)
-    if job:
-        job['results'] = items
     return {"status": "updated", "item": item}
 
 @router.get('/jobs')
